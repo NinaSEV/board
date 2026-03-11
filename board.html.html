@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Board</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#f5f3ef;font-family:'Helvetica Neue',sans-serif;font-weight:300}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:#f5f3ef}
+::-webkit-scrollbar-thumb{background:rgba(26,24,20,.15);border-radius:3px}
+
+header{position:sticky;top:0;z-index:100;background:#f5f3ef;border-bottom:1px solid rgba(26,24,20,.1);padding:0 36px;display:flex;align-items:center;justify-content:space-between;height:62px;gap:16px}
+.logo{font-family:Georgia,serif;font-size:25px;font-weight:300;letter-spacing:.18em;flex-shrink:0}
+.logo em{color:#c9a96e;font-style:italic}
+.logo-tag{font-family:monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#8a8680;margin-left:14px;vertical-align:middle}
+.tabs{display:flex;gap:0;align-items:flex-end;height:100%}
+.tab{font-family:monospace;font-size:10px;letter-spacing:.13em;text-transform:uppercase;padding:0 20px;height:100%;display:flex;align-items:center;cursor:pointer;color:#8a8680;border-bottom:2px solid transparent;transition:all .18s;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none}
+.tab:hover{color:#1a1814}
+.tab.active{color:#1a1814;border-bottom:2px solid #c9a96e}
+.header-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.save-status{font-family:monospace;font-size:10px;color:#8a8680;letter-spacing:.08em}
+.upload-btn{font-family:sans-serif;font-size:10px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;padding:9px 22px;background:#1a1814;color:#fdfcfa;border:none;cursor:pointer;transition:background .2s}
+.upload-btn:hover{background:#c9a96e}
+
+.filterbar{padding:10px 36px;border-bottom:1px solid rgba(26,24,20,.06);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{font-family:monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:4px 11px;border:1px solid rgba(26,24,20,.18);border-radius:20px;cursor:pointer;background:transparent;color:#8a8680;transition:all .18s;white-space:nowrap}
+.pill:hover,.pill.active{background:#1a1814;color:#fdfcfa;border-color:#1a1814}
+.statsbar{padding:8px 36px;border-bottom:1px solid rgba(26,24,20,.06);font-family:monospace;font-size:10px;color:#8a8680;letter-spacing:.1em}
+
+.drop-zone{padding:28px 36px;min-height:60vh;transition:background .2s}
+.drop-zone.over{background:rgba(201,169,110,.07)}
+.grid{columns:4 220px;column-gap:14px}
+.empty{text-align:center;padding-top:80px}
+.empty-icon{color:rgba(26,24,20,.18);margin-bottom:18px}
+.empty h2{font-family:Georgia,serif;font-size:22px;color:#8a8680;font-style:italic;font-weight:300}
+.empty p{font-family:monospace;font-size:10px;color:rgba(26,24,20,.3);letter-spacing:.1em;margin-top:8px}
+
+.card{break-inside:avoid;margin-bottom:14px;position:relative;overflow:hidden;cursor:pointer;background:#fdfcfa;box-shadow:0 1px 4px rgba(26,24,20,.07);transition:box-shadow .25s,transform .25s}
+.card:hover{box-shadow:0 10px 40px rgba(26,24,20,.14);transform:translateY(-2px)}
+.card img{width:100%;display:block;transition:transform .5s ease}
+.card:hover img{transform:scale(1.04)}
+.card-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(26,24,20,.75) 0%,transparent 50%);opacity:0;transition:opacity .25s;display:flex;flex-direction:column;justify-content:flex-end;padding:14px}
+.card:hover .card-overlay{opacity:1}
+.card-note{font-family:sans-serif;font-size:12px;color:rgba(253,252,250,.9);line-height:1.4;margin-bottom:6px}
+.card-tags{display:flex;gap:5px;flex-wrap:wrap}
+.card-tag{font-family:monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;color:#fdfcfa}
+.card-actions{position:absolute;top:9px;right:9px;display:flex;gap:5px;opacity:0;transition:opacity .2s}
+.card:hover .card-actions{opacity:1}
+.card-btn{width:28px;height:28px;border-radius:50%;background:rgba(253,252,250,.92);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s;color:#1a1814}
+.card-btn:hover{transform:scale(1.12)}
+.card-btn.del:hover{background:#fde0de;color:#c0392b}
+.card-btn.starred{background:#c9a96e;color:white}
+
+.titles-page{padding:36px;min-height:60vh}
+.titles-page h1{font-family:Georgia,serif;font-size:28px;font-weight:300;color:#1a1814;letter-spacing:.08em;margin-bottom:6px}
+.titles-page .subtitle{font-family:monospace;font-size:10px;color:#8a8680;letter-spacing:.1em;margin-bottom:32px}
+.cat-block{margin-bottom:40px}
+.cat-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid rgba(26,24,20,.1)}
+.cat-label{font-family:Georgia,serif;font-size:19px;font-weight:300;letter-spacing:.1em;color:#1a1814;display:flex;align-items:center;gap:10px}
+.cat-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
+.add-title-btn{font-family:monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:5px 14px;border:1px solid rgba(26,24,20,.2);background:transparent;color:#8a8680;cursor:pointer;transition:all .15s}
+.add-title-btn:hover{background:#1a1814;color:#fdfcfa;border-color:#1a1814}
+.title-list{display:flex;flex-direction:column;gap:8px}
+.title-item{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 18px;background:#fdfcfa;box-shadow:0 1px 3px rgba(26,24,20,.06)}
+.title-text{font-family:sans-serif;font-size:14.5px;color:#1a1814;line-height:1.5;flex:1}
+.title-actions{display:flex;gap:6px;flex-shrink:0;opacity:0;transition:opacity .15s}
+.title-item:hover .title-actions{opacity:1}
+.t-btn{width:26px;height:26px;border-radius:50%;background:transparent;border:1px solid rgba(26,24,20,.12);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#8a8680;transition:all .15s}
+.t-btn:hover{background:#fde0de;color:#c0392b;border-color:#fde0de}
+.t-btn.star{color:#c9a96e}
+.t-btn.star.on{background:#c9a96e;color:#fff;border-color:#c9a96e}
+.empty-cat{font-family:monospace;font-size:10px;color:rgba(26,24,20,.3);letter-spacing:.08em;padding:14px 0;font-style:italic}
+
+.title-add-form{display:none;padding:12px 14px;background:#f5f3ef;border:1px dashed rgba(26,24,20,.15);gap:10px;align-items:flex-start;margin-top:4px;margin-bottom:8px}
+.title-add-form.open{display:flex}
+.title-add-form textarea{flex:1;border:1px solid rgba(26,24,20,.15);background:#fdfcfa;padding:9px 12px;font-family:sans-serif;font-size:13.5px;color:#1a1814;outline:none;resize:vertical}
+.title-add-form textarea:focus{border-color:#c9a96e;outline:none}
+.form-btns{display:flex;flex-direction:column;gap:6px}
+.f-save{padding:8px 16px;background:#1a1814;color:#fdfcfa;border:none;cursor:pointer;font-family:sans-serif;font-size:10px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+.f-save:hover{background:#c9a96e}
+.f-cancel{padding:8px 16px;background:transparent;color:#8a8680;border:1px solid rgba(26,24,20,.13);cursor:pointer;font-family:sans-serif;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+
+.modal-bg{display:none;position:fixed;inset:0;z-index:200;background:rgba(26,24,20,.6);align-items:center;justify-content:center;padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:#fdfcfa;max-width:500px;width:100%;padding:28px}
+.modal h3{font-family:Georgia,serif;font-size:18px;color:#1a1814;margin-bottom:18px;font-weight:300}
+.modal-preview{width:100%;max-height:280px;object-fit:cover;margin-bottom:16px;display:block}
+.field{width:100%;border:1px solid rgba(26,24,20,.18);background:#f5f3ef;padding:10px 13px;font-family:sans-serif;font-size:13.5px;color:#1a1814;outline:none;resize:vertical}
+.field:focus{border-color:#c9a96e}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 20px}
+.tag-chip{display:inline-flex;align-items:center;gap:5px;font-family:monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border:1px solid rgba(26,24,20,.15);cursor:pointer;color:#8a8680;transition:all .15s;user-select:none}
+.tag-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.modal-btns{display:flex;gap:8px}
+.btn-cancel{padding:11px 18px;background:transparent;color:#8a8680;border:1px solid rgba(26,24,20,.15);cursor:pointer;font-family:sans-serif;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase}
+.btn-save{flex:1;padding:11px;background:#1a1814;color:#fdfcfa;border:none;cursor:pointer;font-family:sans-serif;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:background .2s}
+.btn-save:hover{background:#c9a96e}
+
+.lightbox{display:none;position:fixed;inset:0;z-index:300;background:rgba(26,24,20,.88);align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
+.lightbox.open{display:flex}
+.lightbox-inner{max-width:780px;width:100%;cursor:default}
+.lightbox-inner img{width:100%;max-height:78vh;object-fit:contain;display:block}
+.lightbox-meta{background:#1a1814;padding:14px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.lightbox-note{font-family:sans-serif;font-size:13px;color:rgba(253,252,250,.85);line-height:1.5;flex:1}
+.lightbox-tags{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+
+.loading{text-align:center;padding-top:80px;font-family:monospace;font-size:11px;color:#8a8680;letter-spacing:.1em}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.card-animate{animation:cardIn .28s ease both}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">B<em>oard</em><span class="logo-tag">shared</span></div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('moodboard',this)">Moodboard</button>
+    <button class="tab" onclick="switchTab('titles',this)">Title Examples</button>
+    <button class="tab" onclick="switchTab('adtitles',this)">Ad Title Examples</button>
+  </div>
+  <div class="header-right">
+    <span class="save-status" id="saveStatus"></span>
+    <div id="headerBtn">
+      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">+ Add Image</button>
+      <input id="fileInput" type="file" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files)">
+    </div>
+  </div>
+</header>
+
+<!-- MOODBOARD TAB -->
+<div id="tab-moodboard">
+  <div class="filterbar" id="filters"></div>
+  <div class="statsbar" id="statsbar"></div>
+  <div class="drop-zone" id="dropZone"
+    ondragover="event.preventDefault();this.classList.add('over')"
+    ondragleave="this.classList.remove('over')"
+    ondrop="this.classList.remove('over');event.preventDefault();handleFiles(event.dataTransfer.files)">
+    <div class="loading" id="loadingMsg">Loading board…</div>
+    <div class="empty" id="empty" style="display:none">
+      <div class="empty-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <h2 id="emptyMsg">Drop images here or click + Add Image</h2>
+      <p>supports jpg · png · gif · webp</p>
+    </div>
+    <div class="grid" id="grid" style="display:none"></div>
+  </div>
+</div>
+
+<!-- TITLES TAB -->
+<div id="tab-titles" style="display:none">
+  <div class="titles-page">
+    <h1>Title Examples</h1>
+    <p class="subtitle">curated titles organised by category</p>
+    <div id="titles-cats"></div>
+  </div>
+</div>
+
+<!-- AD TITLES TAB -->
+<div id="tab-adtitles" style="display:none">
+  <div class="titles-page">
+    <h1>Ad Title Examples</h1>
+    <p class="subtitle">curated ad titles organised by category</p>
+    <div id="adtitles-cats"></div>
+  </div>
+</div>
+
+<!-- ADD IMAGE MODAL -->
+<div class="modal-bg" id="addModal">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3>Add to board</h3>
+    <img id="modalPreview" class="modal-preview" src="" alt="preview"/>
+    <textarea id="modalNote" class="field" rows="3" placeholder="Add a note… (optional)"></textarea>
+    <div class="tag-row" id="tagRow"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" id="btnSave" onclick="saveImage()">Save to board</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-inner" onclick="event.stopPropagation()">
+    <img id="lbImg" src="" alt=""/>
+    <div class="lightbox-meta" id="lbMeta" style="display:none">
+      <span class="lightbox-note" id="lbNote"></span>
+      <div class="lightbox-tags" id="lbTags"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──
+const SUPABASE_URL = "https://mlpgnkgghdwrvavdkwzl.supabase.co";
+const SUPABASE_KEY = "sb_publishable_LS2Ccz7VBOLRrhEgAy2jlA_okMwB4x7";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const IMG_TAGS = ["fashion","beauty","lifestyle","home","ads"];
+const TITLE_CATS = ["beauty","fashion","lifestyle"];
+const TAG_COLORS = {fashion:"#c9a96e",beauty:"#d4a0a0",lifestyle:"#a0b8a0",home:"#a0a8c8",ads:"#1a1814"};
+
+let images = [];
+let filter = "all";
+let pending = null;
+let pendingQueue = [];
+let modalTags = [];
+let activeTab = "moodboard";
+
+// ── STATUS ──
+function setStatus(msg, clear=true) {
+  document.getElementById("saveStatus").textContent = msg;
+  if (clear && msg) setTimeout(() => document.getElementById("saveStatus").textContent = "", 2500);
+}
+
+// ── TABS ──
+function switchTab(tab, el) {
+  activeTab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  el.classList.add("active");
+  ["moodboard","titles","adtitles"].forEach(t => {
+    document.getElementById("tab-"+t).style.display = t===tab ? "block" : "none";
+  });
+  document.getElementById("headerBtn").style.display = tab==="moodboard" ? "block" : "none";
+  if (tab==="titles") renderTitles("titles");
+  if (tab==="adtitles") renderTitles("adtitles");
+}
+
+// ── FILTERS ──
+function buildFilters() {
+  const f = document.getElementById("filters");
+  ["all",...IMG_TAGS].forEach(tag => {
+    const b = document.createElement("button");
+    b.className = "pill" + (tag==="all" ? " active" : "");
+    b.textContent = tag;
+    b.onclick = () => {
+      filter = tag;
+      document.querySelectorAll("#filters .pill").forEach(p => p.classList.remove("active"));
+      b.classList.add("active");
+      renderGrid();
+    };
+    f.appendChild(b);
+  });
+}
+
+// ── LOAD IMAGES ──
+async function loadImages() {
+  const { data, error } = await sb.from("images").select("*").order("added_at", { ascending: false });
+  if (error) { console.error(error); setStatus("⚠ load error"); return; }
+  images = data || [];
+  document.getElementById("loadingMsg").style.display = "none";
+  renderGrid();
+  updateStats();
+}
+
+// ── RENDER GRID ──
+function renderGrid() {
+  const filtered = filter==="all" ? images : images.filter(i => (i.tags||[]).includes(filter));
+  const grid = document.getElementById("grid");
+  const empty = document.getElementById("empty");
+  if (!filtered.length) {
+    grid.style.display = "none"; empty.style.display = "block";
+    document.getElementById("emptyMsg").textContent = filter!=="all" ? `No ${filter} images yet` : "Drop images here or click + Add Image";
+    return;
+  }
+  grid.style.display = ""; empty.style.display = "none";
+  grid.innerHTML = "";
+  filtered.forEach((img, i) => {
+    const card = document.createElement("div");
+    card.className = "card card-animate";
+    card.style.animationDelay = `${i*.04}s`;
+    const tags = img.tags || [];
+    card.innerHTML = `
+      <img src="${img.src}" alt="" loading="lazy"/>
+      <div class="card-overlay">
+        ${img.note ? `<p class="card-note">${esc(img.note)}</p>` : ""}
+        <div class="card-tags">${tags.map(t=>`<span class="card-tag" style="background:${TAG_COLORS[t]||'#555'}">${t}</span>`).join("")}</div>
+      </div>
+      <div class="card-actions" onclick="event.stopPropagation()">
+        <button class="card-btn ${img.starred?"starred":""}" onclick="toggleStar('${img.id}',${img.starred})" title="Star">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="${img.starred?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </button>
+        <button class="card-btn del" onclick="deleteImg('${img.id}')" title="Delete">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>`;
+    card.onclick = () => openLightbox(img);
+    grid.appendChild(card);
+  });
+}
+
+function updateStats() {
+  const filtered = filter==="all" ? images : images.filter(i => (i.tags||[]).includes(filter));
+  const starred = images.filter(i => i.starred).length;
+  document.getElementById("statsbar").textContent =
+    `${images.length} image${images.length!==1?"s":""}${starred>0?` · ${starred} starred`:""}${filter!=="all"?` · showing ${filtered.length}`:""}`;
+}
+
+// ── FILE HANDLING ──
+function handleFiles(files) {
+  const imgs = [...files].filter(f => f.type.startsWith("image/"));
+  if (!imgs.length) return;
+  pendingQueue = imgs;
+  processNext();
+}
+function processNext() {
+  if (!pendingQueue.length) return;
+  const file = pendingQueue.shift();
+  const reader = new FileReader();
+  reader.onload = e => {
+    pending = { src: e.target.result, name: file.name };
+    modalTags = [];
+    document.getElementById("modalNote").value = "";
+    document.getElementById("modalPreview").src = pending.src;
+    buildTagRow();
+    document.getElementById("addModal").classList.add("open");
+  };
+  reader.readAsDataURL(file);
+}
+function closeModal() { document.getElementById("addModal").classList.remove("open"); pending = null; }
+
+async function saveImage() {
+  if (!pending) return;
+  const btn = document.getElementById("btnSave");
+  btn.textContent = "Saving…"; btn.disabled = true;
+  const note = document.getElementById("modalNote").value.trim();
+  const { data, error } = await sb.from("images").insert([{
+    src: pending.src, note, tags: modalTags, starred: false
+  }]).select();
+  btn.textContent = "Save to board"; btn.disabled = false;
+  if (error) { setStatus("⚠ save failed"); console.error(error); return; }
+  images.unshift(data[0]);
+  setStatus("✓ saved");
+  closeModal(); renderGrid(); updateStats();
+  setTimeout(processNext, 80);
+}
+
+function buildTagRow() {
+  const r = document.getElementById("tagRow"); r.innerHTML = "";
+  IMG_TAGS.forEach(tag => {
+    const c = document.createElement("span");
+    c.className = "tag-chip" + (modalTags.includes(tag) ? " on" : "");
+    c.style.background = modalTags.includes(tag) ? TAG_COLORS[tag] : "transparent";
+    c.style.color = modalTags.includes(tag) ? "#fdfcfa" : "#8a8680";
+    c.innerHTML = `<span class="tag-dot" style="background:${TAG_COLORS[tag]}"></span>${tag}`;
+    c.onclick = () => { modalTags = modalTags.includes(tag) ? modalTags.filter(t=>t!==tag) : [...modalTags,tag]; buildTagRow(); };
+    r.appendChild(c);
+  });
+}
+
+async function toggleStar(id, current) {
+  await sb.from("images").update({ starred: !current }).eq("id", id);
+  images = images.map(i => i.id===id ? {...i, starred:!current} : i);
+  renderGrid(); updateStats();
+}
+async function deleteImg(id) {
+  await sb.from("images").delete().eq("id", id);
+  images = images.filter(i => i.id!==id);
+  renderGrid(); updateStats();
+}
+
+// ── LIGHTBOX ──
+function openLightbox(img) {
+  document.getElementById("lbImg").src = img.src;
+  const tags = img.tags || [];
+  document.getElementById("lbNote").textContent = img.note || "";
+  document.getElementById("lbTags").innerHTML = tags.map(t=>`<span class="card-tag" style="background:${TAG_COLORS[t]||'#555'};padding:3px 9px">${t}</span>`).join("");
+  document.getElementById("lbMeta").style.display = (img.note || tags.length) ? "flex" : "none";
+  document.getElementById("lightbox").classList.add("open");
+}
+function closeLightbox() { document.getElementById("lightbox").classList.remove("open"); }
+
+// ── TITLES ──
+async function renderTitles(section) {
+  const containerId = section==="titles" ? "titles-cats" : "adtitles-cats";
+  const container = document.getElementById(containerId);
+  container.innerHTML = `<div class="loading">Loading…</div>`;
+  const { data, error } = await sb.from("titles").select("*")
+    .eq("section", section).order("added_at", { ascending: false });
+  if (error) { container.innerHTML = `<p style="color:red;font-size:12px">Error loading titles</p>`; return; }
+  container.innerHTML = "";
+  TITLE_CATS.forEach(cat => {
+    const items = (data||[]).filter(d => d.category===cat);
+    const block = document.createElement("div");
+    block.className = "cat-block";
+    const formId = `form-${section}-${cat}`;
+    const listId = `list-${section}-${cat}`;
+    block.innerHTML = `
+      <div class="cat-header">
+        <div class="cat-label">
+          <span class="cat-dot" style="background:${TAG_COLORS[cat]}"></span>${cat}
+        </div>
+        <button class="add-title-btn" onclick="toggleForm('${formId}')">+ add title</button>
+      </div>
+      <div class="title-add-form" id="${formId}">
+        <textarea class="field" rows="2" placeholder="Enter title…" id="input-${section}-${cat}"></textarea>
+        <div class="form-btns">
+          <button class="f-save" onclick="addTitle('${section}','${cat}')">Save</button>
+          <button class="f-cancel" onclick="toggleForm('${formId}')">Cancel</button>
+        </div>
+      </div>
+      <div class="title-list" id="${listId}"></div>`;
+    container.appendChild(block);
+    renderTitleList(listId, items, section, cat);
+  });
+}
+
+function renderTitleList(listId, items, section, cat) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  if (!items.length) { list.innerHTML = `<p class="empty-cat">No titles yet — click + add title</p>`; return; }
+  list.innerHTML = "";
+  items.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "title-item";
+    div.innerHTML = `
+      <span class="title-text">${esc(item.text)}</span>
+      <div class="title-actions">
+        <button class="t-btn star ${item.starred?"on":""}" onclick="starTitle('${item.id}',${item.starred},'${section}','${cat}')" title="Star">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="${item.starred?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </button>
+        <button class="t-btn" onclick="deleteTitle('${item.id}','${section}','${cat}')" title="Delete">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>`;
+    list.appendChild(div);
+  });
+}
+
+function toggleForm(id) {
+  const f = document.getElementById(id);
+  f.classList.toggle("open");
+  if (f.classList.contains("open")) f.querySelector("textarea").focus();
+}
+
+async function addTitle(section, cat) {
+  const inputId = `input-${section}-${cat}`;
+  const val = document.getElementById(inputId).value.trim();
+  if (!val) return;
+  const { data, error } = await sb.from("titles").insert([{
+    section, category: cat, text: val, starred: false
+  }]).select();
+  if (error) { setStatus("⚠ save failed"); return; }
+  document.getElementById(inputId).value = "";
+  toggleForm(`form-${section}-${cat}`);
+  setStatus("✓ saved");
+  renderTitles(section);
+}
+
+async function starTitle(id, current, section, cat) {
+  await sb.from("titles").update({ starred: !current }).eq("id", id);
+  renderTitles(section);
+}
+async function deleteTitle(id, section, cat) {
+  await sb.from("titles").delete().eq("id", id);
+  renderTitles(section);
+}
+
+function esc(s) { return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
+document.addEventListener("keydown", e => { if (e.key==="Escape") { closeLightbox(); closeModal(); } });
+
+// ── INIT ──
+buildFilters();
+loadImages();
+</script>
+</body>
+</html>
